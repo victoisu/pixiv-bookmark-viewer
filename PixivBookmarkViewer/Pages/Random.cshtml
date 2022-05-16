@@ -1,0 +1,60 @@
+﻿@page "{search?}"
+@model PixivBookmarkViewer.Pages.RandomModel
+@{
+	Layout = null;
+}
+<style>
+	body {
+		margin: 0;
+		padding: 0;
+		background: rgb(18,18,18);
+	}
+
+	#container {
+		width: 100vw;
+		height: 100vh;
+	}
+
+	img {
+		max-height: 100%;
+		max-width: 100%;
+
+		filter: brightness(1.0);
+
+		margin: 0;
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		-ms-transform: translate(-50%, -50%);
+		transform: translate(-50%, -50%);
+	}
+</style>
+
+<script>
+	let loaded = false;
+	let source = "";
+	function loadnew() {
+		if (loaded) {
+			loaded = false;
+			document.getElementById('randimg').src = source + "&r=" + new Date().getTime();
+			document.getElementById("randimg").style.filter = "brightness(0.65)";
+			console.log("Loading new!!!");
+		}
+		else
+		{
+			console.log("Still loading!!");
+		}
+	}
+
+	function loadedimage() {
+		loaded = true;
+		document.getElementById("randimg").style.filter = "brightness(1.0)";
+	}
+	window.onload = (event) => {
+		source = document.getElementById("randimg").src;
+	};
+</script>
+
+<div id="container">
+	<img id="randimg" src="@Model.ApiUrl" onclick="loadnew();" onload="loadedimage();" />
+</div>

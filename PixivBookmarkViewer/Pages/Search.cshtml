@@ -1,0 +1,320 @@
+﻿@page
+@model PixivBookmarkViewer.Pages.SearchModel
+@{
+}
+
+<head>
+    <link rel="stylesheet" href="@(nameof(Search)).styles.css" />
+</head>
+
+<script>
+    thumbnail_ids = [98040269, 98040269, 98040269, 98040269]
+    function getUrl() {
+        tags = document.getElementById("inputBox").value;
+        return "/Random?search=" + encodeURIComponent(tags);
+    }
+
+    async function buttonClick() {
+        window.location = getUrl();
+    }
+
+    async function getMaxTag(search) {
+        if (search == "") {
+            return await fetch("/api/search/tags")
+                .then(r => r.json());
+        }
+        return await fetch("/api/search/tags?search=" + encodeURIComponent(search))
+            .then(r => r.json());
+    }
+
+    function clearList() {
+        grid = document.getElementById("searchtags");
+        while (grid.firstChild) {
+            grid.removeChild(grid.firstChild);
+        }
+    }
+
+    function backspaceSearch() {
+        search = document.getElementById("inputBox");
+        var res = search.value;
+        if (res == "")
+            return;
+
+        search.value = res.replace(/\s*\S+\s*$/, "");
+        makeList();
+        changeChanger();
+    }
+
+    async function refreshPreviews() {
+        search = document.getElementById("inputBox");
+        works = await fetch("/api/search?search=" + encodeURIComponent(search.value) + "&count=4")
+        .then(r => r.json());
+        if (works.length == 0)
+            return;
+
+        thumbnails = document.getElementsByClassName("previewthumbnail");
+        for (var i = 0; i < 4; i++) {
+            thumbnails[i].firstChild.src = "/api/Work/" + works[i].id + "/thumbnail";
+            thumbnails[i].firstChild.setAttribute("work-id", works[i].id);
+            thumbnails[i].firstChild.setAttribute("page-number",  0);
+        }
+    }
+
+    function addToSearch(text) {
+        search = document.getElementById("inputBox");
+        var res = search.value;
+        if (!res.match(/(\s|\)|\()^/))
+            res += " "
+        search.value = res + text;
+        makeList();
+        changeChanger();
+    }
+
+    function clearSearch() {
+        document.getElementById("inputBox").value = "";
+        makeList();
+        changeChanger();
+    }
+
+    function listTags(tags) {
+        boxdiv = document.createElement("DIV");
+        boxdiv.className = "tagbox";
+        list = document.createElement("DIV");
+        list.className = "taglist";
+        allowed = 2000
+        for (var i = 0; i < tags.length && allowed > 0; i++) {
+            var t = tags[i];
+            if (i > 1000 && t.Public) {
+                continue;
+            } 
+            allowed--;
+
+            tname = document.createElement("DIV");
+            tname.classList.add("tagItem")
+            if (t.Public) {
+                tname.classList.add("publictag")
+            }
+            else {
+                tname.classList.add("personaltag")
+            }
+
+            tname.innerHTML = t.Tag;
+            list.appendChild(tname);
+
+            tname.onclick = (e) => {
+                addToSearch(e.target.innerHTML);
+            };
+        };
+        boxdiv.appendChild(list);
+        return boxdiv;
+    }
+
+    async function makeList() {
+        console.log("adding!");
+        search = document.getElementById("inputBox");
+        searchtags = document.getElementById("searchtags");
+
+        tags = await getMaxTag(search.value);
+        if (tags.length == 0)
+            return;
+
+        clearList();
+        refreshPreviews();
+        searchtags.appendChild(listTags(tags));
+    }
+
+    async function changeChanger() {
+        search = document.getElementById("inputBox").value;
+        grid = document.getElementById("totalcounter").innerHTML = await fetch("/api/search/count?search=" + encodeURIComponent(search)).then(d => d.text());
+    }
+
+    async function makeAllTags() {
+        alltags = document.getElementById("alltags");
+        tags = await getMaxTag("");
+        alltags.appendChild(listTags(tags));
+    }
+
+    document.addEventListener("DOMContentLoaded", (e) => {
+        document.getElementById("inputBox").addEventListener("input", makeList);
+        document.getElementById("inputBox").addEventListener("input", changeChanger);
+        makeAllTags();
+        makeList();
+        changeChanger();
+    });
+
+    async function GotoBrowse() {
+        tags = document.getElementById("inputBox").value;
+        window.location = browseUrl(tags, 1, false);
+    }
+</script>
+
+<style>
+    html {
+        overflow-y: scroll;
+    }
+
+    #searchMenu {
+        width: 100%;
+    }
+
+    #inputBox {
+        width: 100%;
+    }
+
+    #search {
+        width: 100%;
+    }
+
+    #gridbox {
+        display: grid;
+        grid-template-columns: 3fr 1fr;
+    }
+
+    #alltags {
+        padding-right: 5px;
+    }
+
+    .taglistcontainer {
+        box-sizing: border-box;
+        width: 50%;
+        float: left;
+        max-width: 50vw;
+    }
+
+    .taglist {
+        max-width: 100%;
+        list-style: none;
+        font-size: 12px;
+        white-space: normal;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        overflow: clip;
+    }
+
+    .tagItem {
+        max-width: 95%;
+        display: inline;
+        margin: 3px;
+        padding: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        float: left;
+    }
+
+    .tagItem:hover {
+        background-color: rgb(100,100,100);
+    }
+
+    .tagItem:nth-child(-n+10) {
+        font-size: 20px;
+    }
+
+    .tagItem:nth-child(-n+11):nth-child(n+20) {
+        font-size: 16px;
+    }
+
+    .tagItem:nth-child(even) {
+        filter: brightness(80%);
+    }
+
+    .gridboxs {
+        display: flex;
+        width: 100%;
+    }
+
+    button {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+    }
+
+    #totalcounter {
+        text-align: center;
+    }
+
+    .personaltag {
+        color: lightgreen;
+    }
+
+    .publictag{
+        color: lightcoral;
+    }
+
+    .colcontainer {
+        max-width: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .colcontainer > div {
+        flex: 1 1 0px;
+    }
+
+    .previews {
+        display:flex;
+        align-items: center;
+        justify-content: center;
+        max-height: 250px;
+        max-width: 1000px;
+        margin: auto;
+    }
+    
+    .previews > div {
+        flex: 1 1 0;
+        max-height: 100%;
+    }
+</style>
+
+<div>
+    <div id="searchMenu">
+        <input id="inputBox" type="text" placeholder="Tags" />
+    </div>
+    <div class="colcontainer">
+        <div class="boxcol">
+            <button onclick="buttonClick();">Random</button>
+        </div>
+        <div class="boxcol">
+            <button onclick="GotoBrowse();">Browse</button>
+        </div>
+        <div class="boxcol">
+            <button onclick="clearSearch();">Clear</button>
+        </div>
+    </div>
+    <div class="colcontainer">
+        <div>
+            <button onclick="addToSearch('(');">(</button>
+        </div>
+        <div>
+            <button onclick="addToSearch(')');">)</button>
+        </div>
+        <div>
+            <button onclick="addToSearch('OR');">OR</button>
+        </div>
+        <div>
+            <button onclick="addToSearch('NOT');">NOT</button>
+        </div>
+        <div>
+            <button onclick="addToSearch('EXACT');">EXACT</button>
+        </div>
+        <div>
+            <button onclick="addToSearch('PUBLIC');">PUBLIC</button>
+        </div>
+        <div>
+            <button onclick="addToSearch('PERSONAL');">PERSONAL</button>
+        </div>
+        <div>
+            <button onclick="backspaceSearch();">Backspace</button>
+        </div>
+    </div>
+    <div>
+        <h1 id="totalcounter" style="text-align: center;">12345</h1>
+    </div>
+</div>
+<div id="tagscontainer">
+    <div id="alltags" class="taglistcontainer"></div>
+    <div id="searchtags" class="taglistcontainer"></div>
+</div>

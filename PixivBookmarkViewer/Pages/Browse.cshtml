@@ -1,0 +1,449 @@
+﻿@page
+@model PixivBookmarkViewer.Pages.BrowseModel
+@{
+}
+
+<script>
+    async function loadWorks(search, random) {
+        works = await fetch(`api/Search?search=${encodeURIComponent(search)}&random=${random}`).then(r => r.json());
+        return works;
+    }
+
+    function generateList(count) {
+        worklist = document.getElementById("works")
+        var itemNode = worklist.children[0]
+        var pn = document.createElement("DIV");
+        pn.classList.add("pagenumber");
+        itemNode.getElementsByTagName("a")[0].appendChild(pn);
+        itemNode.getElementsByTagName("a")[0].style.position = "relative";
+        for(var i = 0; i < count; i++) {
+            var newclone = itemNode.cloneNode(true)
+            newclone.getElementsByTagName("img")[0].style.visibility = "hidden";
+            newclone.getElementsByClassName("worktitle")[0].innerHTML = "-";
+            newclone.getElementsByClassName("workuser")[0].innerHTML = "-";
+            worklist.appendChild(newclone);
+        }
+        worklist.removeChild(itemNode);
+    }
+
+    function clearPages() {
+        var pagesnodes = window.document.getElementsByClassName("pages");
+        while (pagesnodes[0].firstChild) {
+            pagesnodes[0].removeChild(pagesnodes[0].firstChild);
+        }
+        while (pagesnodes[1].firstChild) {
+            pagesnodes[1].removeChild(pagesnodes[1].firstChild);
+        }
+    }
+
+    function clearNode(node) {
+        while (node.firstChild) {
+            node.removeChild(node.firstChild);
+        }
+    }
+
+    function generatePages() {
+        clearPages();
+        var pages = document.getElementsByClassName("pages");
+        var displayPage = queryPage+1;
+        var left = Math.max(1, displayPage-2);
+        var maxPage = Math.ceil((works.length/@Model.PageSize))
+
+        var nextA = generatePage(displayPage-1, maxPage);
+        nextA.innerHTML = "<";
+        pages[0].appendChild(nextA);
+
+        nextA = generatePage(displayPage-1, maxPage);
+        nextA.innerHTML = "<";
+        pages[1].appendChild(nextA);
+
+        for (var i = 0; i < 5; i++) {
+            pages[0].appendChild(generatePage(i+left, maxPage));
+            pages[1].appendChild(generatePage(i+left, maxPage));
+        }
+
+        nextA = generatePage(displayPage+1, maxPage);
+        nextA.innerHTML = ">";
+        pages[0].appendChild(nextA);
+
+        nextA = generatePage(displayPage+1, maxPage);
+        nextA.innerHTML = ">";
+        pages[1].appendChild(nextA);
+    }
+
+    function generatePage(number, max) {
+        var res = document.createElement("A");
+        res.innerHTML = number;
+        if (number >= 1 && number <= max) {
+            res.addEventListener('click', (e) => {
+                if (queryPage == number - 1)
+                    return;
+
+                var state = {};
+                state.search = querySearch;
+                state.pagenumber = number;
+                state.random = queryRandom;
+                window.history.pushState(
+                    state,
+                    `Page ${number}`,
+                    browseUrl(querySearch, number, queryRandom)
+                )
+                populateList(number - 1);
+                queryPage = number - 1;
+                generatePages();
+            });
+            if (number == queryPage + 1) {
+                res.classList.add("active");
+            }
+        }
+        else {
+            res.classList.add("inactive");
+        }
+        return res;
+    }
+
+    function createTagLink(tag) {
+        var el = document.createElement("A");
+        el.innerHTML = tag.name;
+        el.classList.add(tag.isPublic ? "public" : "personal");
+        el.href = browseUrl(tag.name, 1, false);
+        return el;
+    }
+
+    async function populateList(page) {
+        if (typeof works === 'undefined' || typeof worklist === 'undefined')
+            return;
+
+        var start = page * @Model.PageSize;
+        for(var i = 0; i < worklist.children.length; i++) {
+            var child = worklist.children[i];
+            var thumbnail = child.getElementsByClassName("thumbnail")[0];
+            var title = child.getElementsByClassName("worktitle")[0];
+            var user = child.getElementsByClassName("workuser")[0];
+            var img = thumbnail.getElementsByTagName("img")[0];
+            var counter = thumbnail.getElementsByClassName("pagenumber")[0];
+            thumbnail.setAttribute("index", start+i);
+
+            img.style.visibility = "hidden";
+            img.onload = (e) => {e.target.style.visibility = "visible"};
+            if (i < works.length - start) {
+                var work = works[i+start];
+                setThumbnail(thumbnail, work.id, 0);
+                title.innerHTML = work.title;
+                user.innerHTML = work.userName;
+                counter.innerHTML = work.pageCount;
+
+                if (work.pageCount > 1) {
+                    counter.style.display = "inline-block";
+                }
+                else {
+                    counter.style.display = "none";
+                }
+                child.style.display = "list-item"
+            }
+            else {
+                child.style.display = "none"
+            }
+        }
+    }
+
+    async function prepareList() {
+        generateList(@Model.PageSize);
+        await loadWorks(querySearch, queryRandom);
+        generatePages();
+        await populateList(queryPage);
+    }
+
+    function generateFullImage(id, page) {
+        var img = generateImageElement(id, page);
+        var container = document.createElement("DIV");
+        container.classList.add("imageholder");
+
+        var link = document.createElement("A");
+        link.classList.add("imageLink");
+        link.href = img.src;
+        link.appendChild(img);
+        link.target = "_blank";
+
+        container.appendChild(link);
+        return container;
+    }
+
+    function closeOverlay() {
+        imageOverlay.style.display = "none";
+        document.body.style.overflowY = "auto";
+        document.body.classList.remove("locked");
+    }
+
+    document.addEventListener("DOMContentLoaded", (e) => {
+        querySearch = "@Html.Raw(Model.SearchString)";
+        queryRandom = @ViewData["random"];
+        queryPage = @ViewData["page"];
+        imageViewer = document.getElementById("activeimages");
+        imageOverlay = document.getElementById("overlay");
+        imageTitle = document.getElementById("activetitle");
+        imageTags = document.getElementById("activetags");
+        document.getElementById("searchDisplay").innerHTML = `Search results for: "${querySearch}".`;
+
+        prepareList();
+        
+        var state = {};
+        state.search = querySearch;
+        state.pagenumber = queryPage + 1;
+        state.random = queryRandom;
+        window.history.pushState(
+            state,
+            `Page ${queryPage + 1}`,
+            `Browse?search=` + querySearch + `&page=${queryPage + 1}&random=${queryRandom}`
+        )
+
+        imageOverlay.addEventListener("click", (e) => {
+            console.log(e);
+            if (e.target.id == "overlay" || e.target.id == "imageholder") {
+                closeOverlay();
+            }
+        },
+        true);
+
+        urls = document.querySelectorAll(".thumbnail a")
+        for (var i = 0; i < urls.length; i++) {
+            urls[i].addEventListener('click', (e) => {
+                e.preventDefault();
+                var attribs = e.target.parentNode.parentNode.attributes;
+                var work = works[attribs['index'].value];
+                imageTitle.innerHTML = work.title;
+                clearNode(imageTags);
+                for (var i = 0; i < work.tags.length; i++) {
+                    var tag = work.tags[i];
+                    imageTags.appendChild(createTagLink(tag));
+                }
+                clearNode(imageViewer);
+                for (var page = 0; page < work.pageCount; page++) {
+                    imageViewer.appendChild(generateFullImage(attribs['work-id'].value, page));
+                }
+                imageOverlay.style.display = "inline-flex";
+                document.body.classList.add("locked");
+            });
+        }
+    });
+
+    window.addEventListener("popstate", (e) => {
+        console.log("here");
+        console.log(e.state);
+        if (e.state !== null) {
+            querySearch = e.state.search;
+            queryPage = e.state.pagenumber - 1;
+            queryRandom = e.state.random;
+            generatePages();
+            populateList(queryPage);
+        }
+    });
+</script>
+
+<style>
+    html {
+        overflow-x: clip;
+    }
+
+    #works {
+        max-width: 95vw;
+        list-style: none;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .workitem {
+        flex: 1 1 250px;
+        margin: 2px;
+        max-width: 250px;
+    }
+
+    .worktitle, .workuser {
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        overflow: clip;
+    }
+
+    .locked {
+        overflow: hidden;
+    }
+    
+    #overlay {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        top: 0px;
+        left: 0px;
+        background: rgba(0,0,0,0.8);
+        /*display: flex;*/
+        justify-content: center;
+        align-items: center;
+        display: none;
+    }
+
+    #activeimages::-webkit-scrollbar {
+        background: transparent;
+        width: 0px;
+    }
+
+    #viewwork {
+        height: 95vh;
+        width: 95vw;
+        padding: 1vh;
+        background-color: black;
+        border: solid 3px gray;
+        border-radius: 15px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    #viewwork button {
+        min-width: 60px;
+        min-height: 60px;
+        width: 3vh;
+        position: absolute;
+        color: white;
+        height: 3vh;
+        background-color: rgba(240,100,100,0.4);
+        border-radius: 10px;
+        left: 5vw;
+        top: 3.3vh;
+    }
+
+    #searchDisplay {
+        font-size: 200%;
+        width: 100%;
+        padding: 0.5em;
+        text-align: center;
+    }
+
+    #activeimages {
+        overflow-y: scroll;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        flex: 1 1 90vh;
+    }
+
+    #activetitle {
+        font-size: 170%;
+        text-align: center;
+        flex: 0 0 40px;
+    }
+
+    #activetags
+    {
+        text-align: center;
+        flex: 1 1 30px;
+        overflow-y: scroll;
+    }
+
+    #activetags a {
+        padding: 2px 10px;
+    }
+
+    .personal {
+        color: lightgreen;
+    }
+
+    .public {
+        color: coral;
+    }
+    
+    #activetags:nth-child(even) {
+        filter: brightness(60%);
+    }
+
+    .imageholder {
+        width: 100%;
+        max-height: 100%;
+        background: rgb(25,25,25);
+        display: inline-flex;
+        justify-content: center;
+    }
+
+    .imageholder + .imageholder a img {
+        margin-top: 5px;
+    }
+
+    .pagenumber {
+        position: absolute;
+        left: 6px;
+        top: 6px;
+        background: rgba(0,0,0,0.6);
+        width: 30px;
+        height: 30px;
+        text-align: center;
+        color: white;
+        border-radius: 6px;
+        display: inline-block;
+        line-height: 30px;
+    }
+
+    .work-image {
+        object-fit: scale-down;
+        width: 100%;
+        max-height: 100%;
+    }
+
+    .imageholder a {
+/*        position: absolute;
+        width: 100%;
+        height: 100%;*/
+    }
+
+    .pages {
+        display: inline-block;
+        width: 100%;
+        text-align: center;
+        padding: 20px 0;
+    }
+
+        .pages a {
+            width: 100px;
+            height: 100px;
+            padding: 20px;
+            font-size: large;
+        }
+            
+            .pages a.active {
+                background-color: rgb(50, 125, 50);
+            }
+
+            .pages a:hover:not(.inactive, .active) {
+                background-color: rgb(100, 100, 100);
+            }
+
+            .pages a.inactive {
+                color: rgb(150,150,150);
+            }
+</style>
+
+
+<div id="workpage">
+    <div id="searchDisplay"></div>
+    <div class="pages"></div>
+    <ul id="works">
+        <li class="workitem">
+            <div>
+                <thumbnail id="98152773" />
+                <div>
+                    <div class='worktitle'>Text 1</div>
+                    <div class='workuser'>Text 2</div>
+                </div>
+            </div>
+        </li>
+    </ul>
+    <div class="pages"></div>
+</div>
+<div id="overlay">
+    <div id="viewwork">
+        <div id="activeimages">
+
+        </div>
+        <div id="activetitle">Title blah</div>
+        <div id="activetags">Blah tags</div>
+        <button onclick="closeOverlay();"></button>
+    </div>
+</div>

@@ -1,20 +1,24 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Logging;
+using System.Threading.Tasks;
 
 namespace PixivBookmarkViewer.Pages
 {
     public class IndexModel : PageModel
-    {
-        private readonly ILogger<IndexModel> _logger;
+	{
+		private readonly ILogger<IndexModel> _logger;
 
-        public IndexModel(ILogger<IndexModel> logger)
-        {
-            _logger = logger;
-        }
+        public int BookmarkCount { get; private set; }
 
-        public void OnGet()
-        {
+		public IndexModel(ILogger<IndexModel> logger, PixivService pixiv, DatabaseService db)
+		{
+			_logger = logger;
+		}
 
-        }
-    }
+		public async Task<IActionResult> OnGetAsync()
+		{
+			return Page();
+		}
+	}
 }
